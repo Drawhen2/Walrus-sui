@@ -3,100 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Walrus & SUI Real-time Dashboard</title>
+    <title>Walrus & SUI Monitor - GeckoTerminal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #0f172a; color: white; font-family: sans-serif; }
-        .card { background: #1e293b; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-        .price-up { color: #22c55e; }
-        .price-down { color: #ef4444; }
+        body { background-color: #0b0e14; color: #e5e7eb; font-family: 'Inter', sans-serif; }
+        .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; overflow: hidden; }
+        .price-text { color: #58a6ff; }
+        .chart-wrapper { position: relative; width: 100%; height: 500px; }
+        iframe { width: 100%; height: 100%; border: none; }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-4 md:p-6">
 
-    <div class="max-w-6xl mx-auto">
-        <h1 class="text-3xl font-bold mb-8 text-center text-blue-400">Crypto Real-time Monitor</h1>
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-6 flex justify-between items-end">
+            <div>
+                <h1 class="text-2xl font-bold text-white">Sui Network Terminal</h1>
+                <p class="text-sm text-gray-400">Data Real-time via GeckoTerminal</p>
+            </div>
+            <div id="clock" class="text-sm font-mono text-gray-500"></div>
+        </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             <div class="card">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold">Walrus (WAL)</h2>
-                    <span id="wal-change" class="text-sm font-bold px-2 py-1 rounded bg-gray-700">--%</span>
+                <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800/50">
+                    <div>
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Pair: WAL/SUI</span>
+                        <h2 class="text-xl font-bold text-blue-400">WALRUS (WAL)</h2>
+                    </div>
+                    <div class="text-right">
+                        <div id="wal-price-usd" class="text-lg font-bold text-white leading-none">$0.00</div>
+                        <div id="wal-price-idr" class="text-xs text-gray-400 mt-1">Rp 0</div>
+                    </div>
                 </div>
-                <div class="text-4xl font-bold mb-2" id="wal-usd">$0.00</div>
-                <div class="text-lg text-gray-400" id="wal-idr">Rp 0</div>
+                <div class="chart-wrapper">
+                    <iframe 
+                        src="https://www.geckoterminal.com/sui-network/pools/0x5734e6284f1b2d35c59367d32c918a09f98482436d655f4625575501865e944a?embed=1&info=0&swaps=1&grayscale=0&light_chart=0" 
+                        allow="clipboard-write" allowfullscreen>
+                    </iframe>
+                </div>
             </div>
 
             <div class="card">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold">Sui (SUI)</h2>
-                    <span id="sui-change" class="text-sm font-bold px-2 py-1 rounded bg-gray-700">--%</span>
+                <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800/50">
+                    <div>
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Pair: SUI/USDC</span>
+                        <h2 class="text-xl font-bold text-cyan-400">SUI (SUI)</h2>
+                    </div>
+                    <div class="text-right">
+                        <div id="sui-price-usd" class="text-lg font-bold text-white leading-none">$0.00</div>
+                        <div id="sui-price-idr" class="text-xs text-gray-400 mt-1">Rp 0</div>
+                    </div>
                 </div>
-                <div class="text-4xl font-bold mb-2" id="sui-usd">$0.00</div>
-                <div class="text-lg text-gray-400" id="sui-idr">Rp 0</div>
+                <div class="chart-wrapper">
+                    <iframe 
+                        src="https://www.geckoterminal.com/sui-network/pools/0x06029013c4c92472b46761596e2f170f8623631584c31278187cc8042456f91f?embed=1&info=0&swaps=1&grayscale=0&light_chart=0" 
+                        allow="clipboard-write" allowfullscreen>
+                    </iframe>
+                </div>
             </div>
-        </div>
 
-        <div class="card h-[500px] mb-8">
-            <h2 class="text-xl font-semibold mb-4 text-blue-300">Market Chart (SUI/USDT)</h2>
-            <div id="tradingview_widget" class="h-full"></div>
         </div>
     </div>
 
-    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-    <script type="text/javascript">
-        new TradingView.widget({
-            "autosize": true,
-            "symbol": "BINANCE:SUIUSDT",
-            "interval": "60",
-            "timezone": "Asia/Jakarta",
-            "theme": "dark",
-            "style": "1",
-            "locale": "id",
-            "toolbar_bg": "#f1f3f6",
-            "enable_publishing": false,
-            "hide_top_toolbar": false,
-            "save_image": false,
-            "container_id": "tradingview_widget"
-        });
-    </script>
-
     <script>
-        const formatterUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-        const formatterIDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
-
-        async function fetchPrices() {
+        // Fungsi Update Harga via Coingecko API untuk Header
+        async function fetchRealtimePrices() {
             try {
-                // Walrus (WAL) seringkali terdaftar sebagai 'walrus' di Coingecko
-                const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=walrus-2,sui&vs_currencies=usd,idr&include_24hr_change=true');
+                const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=walrus-2,sui&vs_currencies=usd,idr');
                 const data = await response.json();
-
-                updateUI('wal', data['walrus-2']);
-                updateUI('sui', data['sui']);
-            } catch (error) {
-                console.error("Gagal mengambil data harga:", error);
-            }
-        }
-
-        function updateUI(coin, data) {
-            const usdElem = document.getElementById(`${coin}-usd`);
-            const idrElem = document.getElementById(`${coin}-idr`);
-            const changeElem = document.getElementById(`${coin}-change`);
-
-            if (data) {
-                usdElem.innerText = formatterUSD.format(data.usd);
-                idrElem.innerText = formatterIDR.format(data.idr);
                 
-                const change = data.usd_24h_change.toFixed(2);
-                changeElem.innerText = (change > 0 ? '+' : '') + change + '%';
-                changeElem.className = `text-sm font-bold px-2 py-1 rounded ${change >= 0 ? 'bg-green-900 text-green-400' : 'bg-red-900 text-red-400'}`;
+                const formatUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 4 }).format(val);
+                const formatIDR = (val) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
+
+                if(data['walrus-2']) {
+                    document.getElementById('wal-price-usd').innerText = formatUSD(data['walrus-2'].usd);
+                    document.getElementById('wal-price-idr').innerText = formatIDR(data['walrus-2'].idr);
+                }
+                if(data['sui']) {
+                    document.getElementById('sui-price-usd').innerText = formatUSD(data['sui'].usd);
+                    document.getElementById('sui-price-idr').innerText = formatIDR(data['sui'].idr);
+                }
+            } catch (err) {
+                console.error("Price fetch error");
             }
         }
 
-        // Update harga setiap 30 detik
-        fetchPrices();
-        setInterval(fetchPrices, 30000);
+        // Jam digital sederhana
+        setInterval(() => {
+            document.getElementById('clock').innerText = new Date().toLocaleString('id-ID');
+        }, 1000);
+
+        // Update harga setiap 20 detik
+        fetchRealtimePrices();
+        setInterval(fetchRealtimePrices, 20000);
     </script>
 </body>
 </html>
+
