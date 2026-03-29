@@ -3,90 +3,128 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Walrus & SUI Monitor - CoinGecko Fix</title>
+    <title>Walrus & SUI Monitor Real-time</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { 
-            background-color: #121212; 
-            color: #ffffff; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .container-main { max-width: 1000px; margin: 0 auto; padding: 20px; }
-        .grid-layout { display: grid; grid-template-columns: 1fr; gap: 2rem; }
-        @media (min-width: 768px) { .grid-layout { grid-template-columns: 1fr 1fr; } }
-        .widget-card { 
-            background: #1e1e1e; 
-            border-radius: 15px; 
-            padding: 15px; 
-            border: 1px solid #333;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-        }
+        body { background-color: #0f172a; color: white; font-family: 'Inter', sans-serif; }
+        .card { background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155; }
+        .chart-container { height: 450px; width: 100%; }
     </style>
 </head>
-<body>
+<body class="p-4 md:p-6">
 
-    <div class="container-main">
-        <header class="text-center mb-10">
-            <h1 class="text-3xl font-bold text-green-400 mb-2">Crypto Live Price</h1>
-            <p class="text-gray-400">Data Real-time via CoinGecko Widget</p>
+    <div class="max-w-7xl mx-auto">
+        <header class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
+                Sui Ecosystem Dashboard
+            </h1>
+            <div id="last-update" class="text-xs text-slate-400">Memuat data...</div>
         </header>
 
-        <div class="grid-layout">
-            
-            <div class="widget-card">
-                <h2 class="text-xl font-semibold mb-4 text-center border-b border-gray-700 pb-2">SUI Network (SUI)</h2>
-                <script src="https://widgets.coingecko.com/coingecko-coin-compare-chart-widget.js"></script>
-                <coingecko-coin-compare-chart-widget 
-                    coin-ids="sui" 
-                    currency="usd" 
-                    locale="id" 
-                    v-on:price-converted="updateIDR">
-                </coingecko-coin-compare-chart-widget>
-                
-                <script src="https://widgets.coingecko.com/coingecko-coin-ticker-widget.js"></script>
-                <coingecko-coin-ticker-widget 
-                    coin-id="sui" 
-                    currency="idr" 
-                    locale="id" 
-                    transparent-background="true">
-                </coingecko-coin-ticker-widget>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="card">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-slate-400 text-sm font-medium">Walrus Protocol (WAL)</p>
+                        <h2 class="text-3xl font-bold mt-1" id="wal-usd">$0.00</h2>
+                        <p class="text-slate-400 text-sm" id="wal-idr">Rp 0</p>
+                    </div>
+                    <span id="wal-change" class="text-xs font-bold px-2 py-1 rounded">--%</span>
+                </div>
             </div>
 
-            <div class="widget-card">
-                <h2 class="text-xl font-semibold mb-4 text-center border-b border-gray-700 pb-2">Walrus (WAL)</h2>
-                <script src="https://widgets.coingecko.com/coingecko-coin-compare-chart-widget.js"></script>
-                <coingecko-coin-compare-chart-widget 
-                    coin-ids="walrus-2" 
-                    currency="usd" 
-                    locale="id">
-                </coingecko-coin-compare-chart-widget>
-
-                <script src="https://widgets.coingecko.com/coingecko-coin-ticker-widget.js"></script>
-                <coingecko-coin-ticker-widget 
-                    coin-id="walrus-2" 
-                    currency="idr" 
-                    locale="id" 
-                    transparent-background="true">
-                </coingecko-coin-ticker-widget>
+            <div class="card">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-slate-400 text-sm font-medium">Sui (SUI)</p>
+                        <h2 class="text-3xl font-bold mt-1" id="sui-usd">$0.00</h2>
+                        <p class="text-slate-400 text-sm" id="sui-idr">Rp 0</p>
+                    </div>
+                    <span id="sui-change" class="text-xs font-bold px-2 py-1 rounded">--%</span>
+                </div>
             </div>
-
         </div>
 
-        <footer class="mt-12 text-center text-gray-500 text-sm">
-            <p>Halaman ini diperbarui secara otomatis oleh widget CoinGecko.</p>
-            <p class="mt-2" id="time-display"></p>
-        </footer>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card">
+                <h3 class="text-lg font-semibold mb-4 text-blue-400">WAL/USDT Chart</h3>
+                <div id="chart_walrus" class="chart-container"></div>
+            </div>
+
+            <div class="card">
+                <h3 class="text-lg font-semibold mb-4 text-cyan-400">SUI/USDT Chart</h3>
+                <div id="chart_sui" class="chart-container"></div>
+            </div>
+        </div>
     </div>
 
-    <script>
-        // Menampilkan waktu lokal saat ini
-        function updateTime() {
-            const now = new Date();
-            document.getElementById('time-display').innerText = "Waktu Lokal: " + now.toLocaleString('id-ID');
-        }
-        setInterval(updateTime, 1000);
-        updateTime();
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <script type="text/javascript">
+        // Widget untuk Walrus (Menggunakan BYBIT karena biasanya WAL list di sana)
+        new TradingView.widget({
+            "autosize": true,
+            "symbol": "BYBIT:WALUSDT",
+            "interval": "60",
+            "timezone": "Asia/Jakarta",
+            "theme": "dark",
+            "style": "1",
+            "locale": "id",
+            "enable_publishing": false,
+            "hide_top_toolbar": false,
+            "container_id": "chart_walrus"
+        });
+
+        // Widget untuk Sui
+        new TradingView.widget({
+            "autosize": true,
+            "symbol": "BINANCE:SUIUSDT",
+            "interval": "60",
+            "timezone": "Asia/Jakarta",
+            "theme": "dark",
+            "style": "1",
+            "locale": "id",
+            "enable_publishing": false,
+            "container_id": "chart_sui"
+        });
     </script>
 
+    <script>
+        const formatterUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 4 });
+        const formatterIDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+
+        async function updateData() {
+            try {
+                // Fetch dari CoinGecko (ID walrus-2 untuk Walrus Protocol)
+                const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=walrus-2,sui&vs_currencies=usd,idr&include_24hr_change=true');
+                const data = await response.json();
+
+                renderPrice('wal', data['walrus-2']);
+                renderPrice('sui', data['sui']);
+                
+                document.getElementById('last-update').innerText = "Terakhir diperbarui: " + new Date().toLocaleTimeString();
+            } catch (e) {
+                console.error("Gagal update harga");
+            }
+        }
+
+        function renderPrice(id, coinData) {
+            if (!coinData) return;
+            
+            const usd = document.getElementById(`${id}-usd`);
+            const idr = document.getElementById(`${id}-idr`);
+            const change = document.getElementById(`${id}-change`);
+
+            usd.innerText = formatterUSD.format(coinData.usd);
+            idr.innerText = formatterIDR.format(coinData.idr);
+            
+            const valChange = coinData.usd_24h_change.toFixed(2);
+            change.innerText = (valChange > 0 ? '+' : '') + valChange + '%';
+            change.className = `text-xs font-bold px-2 py-1 rounded ${valChange >= 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`;
+        }
+
+        setInterval(updateData, 30000); // Update setiap 30 detik
+        updateData();
+    </script>
 </body>
 </html>
+
