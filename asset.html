@@ -10,6 +10,10 @@
         .card { background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155; }
         .skeleton { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; background-color: #334155; border-radius: 0.25rem; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        /* Scrollbar kustom untuk list aset */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
     </style>
 </head>
 <body class="p-4 md:p-6">
@@ -31,33 +35,34 @@
             </a>
         </header>
 
-        <div class="card mb-6">
-            <p class="text-slate-400 text-sm font-medium mb-1">Alamat Dompet Sui</p>
-            <p class="text-sm md:text-base text-cyan-400 break-all font-mono bg-slate-900 p-3 rounded border border-slate-700">
-                0xa3be17deeecb502096e7e8d107dbef81d96bdcf4fc5eab2aff4489988fde22f7
-            </p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div class="card">
-                <div class="flex items-center gap-3 mb-2">
-                    <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center font-bold text-white">S</div>
-                    <p class="text-slate-400 text-sm font-medium">Saldo SUI</p>
-                </div>
-                <h2 class="text-4xl font-bold mt-2 text-white" id="sui-balance">
-                    <div class="skeleton h-10 w-32"></div>
-                </h2>
-                <p class="text-slate-400 text-sm mt-2">Harga saat ini: <span id="sui-current-price" class="text-slate-300">...</span></p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="card md:col-span-2">
+                <p class="text-slate-400 text-sm font-medium mb-1">Alamat Dompet Sui</p>
+                <p class="text-sm md:text-base text-cyan-400 break-all font-mono bg-slate-900 p-3 rounded border border-slate-700">
+                    0xa3be17deeecb502096e7e8d107dbef81d96bdcf4fc5eab2aff4489988fde22f7
+                </p>
             </div>
 
             <div class="card bg-gradient-to-br from-[#1e293b] to-[#0f172a] border-cyan-900/50">
-                <p class="text-slate-400 text-sm font-medium mb-2">Total Nilai Estimasi Asset</p>
-                <h2 class="text-4xl font-bold mt-1 text-green-400" id="total-usd">
-                    <div class="skeleton h-10 w-48"></div>
+                <p class="text-slate-400 text-sm font-medium mb-2">Total Estimasi Asset</p>
+                <h2 class="text-3xl font-bold mt-1 text-green-400" id="total-usd">
+                    <div class="skeleton h-8 w-32"></div>
                 </h2>
-                <p class="text-slate-400 text-md mt-2" id="total-idr">
-                    <div class="skeleton h-5 w-32 mt-2"></div>
+                <p class="text-slate-400 text-sm mt-1" id="total-idr">
+                    <div class="skeleton h-4 w-24"></div>
                 </p>
+            </div>
+        </div>
+
+        <div class="card p-0 overflow-hidden">
+            <div class="p-4 border-b border-slate-700 bg-slate-800/50">
+                <h3 class="text-lg font-semibold text-white">Daftar Koin / Token</h3>
+            </div>
+            <div id="asset-list" class="max-h-[500px] overflow-y-auto">
+                <div class="p-4 border-b border-slate-700/50 flex justify-between">
+                    <div class="flex gap-4"><div class="skeleton w-10 h-10 rounded-full"></div><div class="space-y-2"><div class="skeleton w-20 h-4"></div><div class="skeleton w-32 h-3"></div></div></div>
+                    <div class="space-y-2 text-right"><div class="skeleton w-16 h-4 ml-auto"></div><div class="skeleton w-24 h-3 ml-auto"></div></div>
+                </div>
             </div>
         </div>
     </div>
@@ -68,60 +73,125 @@
         
         const formatterUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
         const formatterIDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
-        const formatterCoin = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
+        // Mapping Contract ke CoinGecko ID untuk harga
+        const tokenPriceMapping = {
+            "0x2::sui::SUI": "sui",
+            "0x356a26eb9e012a68958082340d4c4116e7f55615cf27affcff209cf0ae544f59::wal::WAL": "walrus-2", // Contract WAL ditambahkan ke sini
+            "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC": "usd-coin",
+            "0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN": "usd-coin-wormhole-from-ethereum"
+        };
 
         async function fetchAssetData() {
             try {
-                document.getElementById('status-text').innerText = "Sinkronisasi data...";
+                document.getElementById('status-text').innerText = "Sinkronisasi aset dari blockchain...";
 
-                // 1. Fetch Saldo SUI dari Blockchain (RPC Mainnet)
-                const rpcResponse = await fetch(SUI_RPC_URL, {
+                // 1. Fetch Semua Saldo Token
+                const balResponse = await fetch(SUI_RPC_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         jsonrpc: "2.0",
                         id: 1,
-                        method: "suix_getBalance",
-                        params: [SUI_ADDRESS, "0x2::sui::SUI"]
+                        method: "suix_getAllBalances",
+                        params: [SUI_ADDRESS]
                     })
                 });
-                
-                const rpcData = await rpcResponse.json();
-                
-                // Koin SUI memiliki 9 desimal (MIST)
-                const rawBalance = rpcData.result.totalBalance;
-                const suiBalance = parseInt(rawBalance) / 1000000000;
+                const balData = await balResponse.json();
+                const balances = balData.result;
 
-                // 2. Fetch Harga SUI terkini dari CoinGecko
-                const priceResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=sui&vs_currencies=usd,idr');
+                if (!balances || balances.length === 0) {
+                    document.getElementById('asset-list').innerHTML = '<div class="p-6 text-center text-slate-400">Tidak ada aset ditemukan di dompet ini.</div>';
+                    document.getElementById('total-usd').innerText = "$0.00";
+                    document.getElementById('total-idr').innerText = "Rp 0";
+                    document.getElementById('status-text').innerText = "Selesai.";
+                    return;
+                }
+
+                // 2. Fetch Metadata Token (Desimal, Simbol, Nama) secara paralel
+                const metaPromises = balances.map(b => 
+                    fetch(SUI_RPC_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ jsonrpc: "2.0", id: b.coinType, method: "suix_getCoinMetadata", params: [b.coinType] })
+                    }).then(res => res.json())
+                );
+                const metaResults = await Promise.all(metaPromises);
+
+                // 3. Fetch Harga dari CoinGecko
+                // Hapus duplikat ID agar request ke CoinGecko tidak error
+                const uniqueCgIds = [...new Set(Object.values(tokenPriceMapping))];
+                const cgIds = uniqueCgIds.join(',');
+                
+                const priceResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cgIds}&vs_currencies=usd,idr`);
                 const priceData = await priceResponse.json();
-                
-                const priceUsd = priceData.sui.usd;
-                const priceIdr = priceData.sui.idr;
 
-                // 3. Kalkulasi Total
-                const totalUsd = suiBalance * priceUsd;
-                const totalIdr = suiBalance * priceIdr;
+                let totalUsd = 0;
+                let totalIdr = 0;
+                let htmlContent = '';
 
-                // 4. Render ke UI
-                document.getElementById('sui-balance').innerHTML = `${formatterCoin.format(suiBalance)} <span class="text-xl text-slate-400 font-normal">SUI</span>`;
-                document.getElementById('sui-current-price').innerText = formatterUSD.format(priceUsd);
-                
+                // 4. Proses dan Render Data
+                balances.forEach((b, index) => {
+                    const meta = metaResults[index].result || {};
+                    
+                    const decimals = meta.decimals || 9; // Default Sui decimals
+                    const symbol = meta.symbol || b.coinType.split('::').pop();
+                    const name = meta.name || symbol;
+                    let iconUrl = meta.iconUrl || `https://ui-avatars.com/api/?name=${symbol}&background=1e293b&color=fff`;
+
+                    // Handle ikon manual jika RPC tidak menyediakan
+                    if (b.coinType === "0x2::sui::SUI") iconUrl = "https://cryptologos.cc/logos/sui-sui-logo.png";
+                    if (b.coinType === "0x356a26eb9e012a68958082340d4c4116e7f55615cf27affcff209cf0ae544f59::wal::WAL") iconUrl = "https://assets.coingecko.com/coins/images/39566/standard/walrus.jpg"; // Placeholder untuk icon Walrus jika ada
+
+                    const rawBalance = parseInt(b.totalBalance);
+                    const actualBalance = rawBalance / Math.pow(10, decimals);
+
+                    let coinUsd = 0;
+                    let coinIdr = 0;
+                    const cgId = tokenPriceMapping[b.coinType];
+
+                    // Jika token ada di mapping dan harganya ada di CoinGecko
+                    if (cgId && priceData[cgId]) {
+                        coinUsd = actualBalance * priceData[cgId].usd;
+                        coinIdr = actualBalance * priceData[cgId].idr;
+                        totalUsd += coinUsd;
+                        totalIdr += coinIdr;
+                    }
+
+                    // Hanya tampilkan jika saldo lebih dari 0
+                    if (actualBalance > 0) {
+                        htmlContent += `
+                            <div class="flex items-center justify-between p-4 border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
+                                <div class="flex items-center gap-4">
+                                    <img src="${iconUrl}" alt="${symbol}" class="w-10 h-10 rounded-full bg-slate-800 object-cover" onerror="this.src='https://ui-avatars.com/api/?name=${symbol}&background=1e293b&color=fff'">
+                                    <div>
+                                        <h3 class="font-bold text-white">${name} <span class="text-xs text-slate-400 font-normal ml-1 bg-slate-800 px-2 py-0.5 rounded">${symbol}</span></h3>
+                                        <p class="text-sm text-slate-400 mt-0.5">${actualBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })} ${symbol}</p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <p class="font-bold ${coinUsd > 0 ? 'text-white' : 'text-slate-500'}">${coinUsd > 0 ? formatterUSD.format(coinUsd) : 'N/A'}</p>
+                                    ${coinIdr > 0 ? `<p class="text-xs text-slate-400 mt-0.5">${formatterIDR.format(coinIdr)}</p>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+
+                // Update UI
+                document.getElementById('asset-list').innerHTML = htmlContent || '<div class="p-6 text-center text-slate-400">Tidak ada saldo yang valid.</div>';
                 document.getElementById('total-usd').innerText = formatterUSD.format(totalUsd);
                 document.getElementById('total-idr').innerText = formatterIDR.format(totalIdr);
                 
                 document.getElementById('status-text').innerText = "Data berhasil diperbarui: " + new Date().toLocaleTimeString('id-ID');
 
             } catch (error) {
-                console.error("Gagal mengambil data aset:", error);
-                document.getElementById('status-text').innerText = "Gagal mengambil data. Coba muat ulang halaman.";
-                document.getElementById('sui-balance').innerHTML = '<span class="text-red-400 text-xl">Error loading balance</span>';
-                document.getElementById('total-usd').innerHTML = '<span class="text-red-400 text-xl">Error calculation</span>';
-                document.getElementById('total-idr').innerHTML = '';
+                console.error("Gagal mengambil data:", error);
+                document.getElementById('status-text').innerHTML = '<span class="text-red-400">Gagal menarik data. Coba muat ulang halaman.</span>';
+                document.getElementById('asset-list').innerHTML = '<div class="p-6 text-center text-red-400">Terjadi kesalahan saat membaca blockchain.</div>';
             }
         }
 
-        // Panggil fungsi saat halaman dimuat
         fetchAssetData();
     </script>
 </body>
