@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sui Asset Portfolio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: white; font-family: 'Inter', sans-serif; }
+        .card { background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155; }
+        .skeleton { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; background-color: #334155; border-radius: 0.25rem; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+
+    <div class="max-w-4xl mx-auto">
+        <header class="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-slate-700 pb-4 gap-4">
+            <div class="text-center md:text-left w-full md:w-auto">
+                <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
+                    My Asset Portfolio
+                </h1>
+                <div class="text-xs text-slate-400 mt-1" id="status-text">Menghubungkan ke jaringan Sui...</div>
+            </div>
+            
+            <a href="index.html" class="w-full md:w-auto text-center bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 px-6 rounded-lg shadow-lg transition-all duration-300 flex justify-center items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Kembali ke Dashboard
+            </a>
+        </header>
+
+        <div class="card mb-6">
+            <p class="text-slate-400 text-sm font-medium mb-1">Alamat Dompet Sui</p>
+            <p class="text-sm md:text-base text-cyan-400 break-all font-mono bg-slate-900 p-3 rounded border border-slate-700">
+                0xa3be17deeecb502096e7e8d107dbef81d96bdcf4fc5eab2aff4489988fde22f7
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="card">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center font-bold text-white">S</div>
+                    <p class="text-slate-400 text-sm font-medium">Saldo SUI</p>
+                </div>
+                <h2 class="text-4xl font-bold mt-2 text-white" id="sui-balance">
+                    <div class="skeleton h-10 w-32"></div>
+                </h2>
+                <p class="text-slate-400 text-sm mt-2">Harga saat ini: <span id="sui-current-price" class="text-slate-300">...</span></p>
+            </div>
+
+            <div class="card bg-gradient-to-br from-[#1e293b] to-[#0f172a] border-cyan-900/50">
+                <p class="text-slate-400 text-sm font-medium mb-2">Total Nilai Estimasi Asset</p>
+                <h2 class="text-4xl font-bold mt-1 text-green-400" id="total-usd">
+                    <div class="skeleton h-10 w-48"></div>
+                </h2>
+                <p class="text-slate-400 text-md mt-2" id="total-idr">
+                    <div class="skeleton h-5 w-32 mt-2"></div>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUI_ADDRESS = "0xa3be17deeecb502096e7e8d107dbef81d96bdcf4fc5eab2aff4489988fde22f7";
+        const SUI_RPC_URL = "https://fullnode.mainnet.sui.io:443";
+        
+        const formatterUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+        const formatterIDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+        const formatterCoin = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
+        async function fetchAssetData() {
+            try {
+                document.getElementById('status-text').innerText = "Sinkronisasi data...";
+
+                // 1. Fetch Saldo SUI dari Blockchain (RPC Mainnet)
+                const rpcResponse = await fetch(SUI_RPC_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        jsonrpc: "2.0",
+                        id: 1,
+                        method: "suix_getBalance",
+                        params: [SUI_ADDRESS, "0x2::sui::SUI"]
+                    })
+                });
+                
+                const rpcData = await rpcResponse.json();
+                
+                // Koin SUI memiliki 9 desimal (MIST)
+                const rawBalance = rpcData.result.totalBalance;
+                const suiBalance = parseInt(rawBalance) / 1000000000;
+
+                // 2. Fetch Harga SUI terkini dari CoinGecko
+                const priceResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=sui&vs_currencies=usd,idr');
+                const priceData = await priceResponse.json();
+                
+                const priceUsd = priceData.sui.usd;
+                const priceIdr = priceData.sui.idr;
+
+                // 3. Kalkulasi Total
+                const totalUsd = suiBalance * priceUsd;
+                const totalIdr = suiBalance * priceIdr;
+
+                // 4. Render ke UI
+                document.getElementById('sui-balance').innerHTML = `${formatterCoin.format(suiBalance)} <span class="text-xl text-slate-400 font-normal">SUI</span>`;
+                document.getElementById('sui-current-price').innerText = formatterUSD.format(priceUsd);
+                
+                document.getElementById('total-usd').innerText = formatterUSD.format(totalUsd);
+                document.getElementById('total-idr').innerText = formatterIDR.format(totalIdr);
+                
+                document.getElementById('status-text').innerText = "Data berhasil diperbarui: " + new Date().toLocaleTimeString('id-ID');
+
+            } catch (error) {
+                console.error("Gagal mengambil data aset:", error);
+                document.getElementById('status-text').innerText = "Gagal mengambil data. Coba muat ulang halaman.";
+                document.getElementById('sui-balance').innerHTML = '<span class="text-red-400 text-xl">Error loading balance</span>';
+                document.getElementById('total-usd').innerHTML = '<span class="text-red-400 text-xl">Error calculation</span>';
+                document.getElementById('total-idr').innerHTML = '';
+            }
+        }
+
+        // Panggil fungsi saat halaman dimuat
+        fetchAssetData();
+    </script>
+</body>
+</html>
