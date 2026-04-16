@@ -39,7 +39,7 @@
 <body class="p-4 md:p-8">
 
     <div class="max-w-4xl mx-auto">
-        <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+        <header class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <div class="text-center md:text-left">
                 <h1 class="text-3xl font-bold cetus-gradient-text mb-2">
                     My Asset Portfolio
@@ -64,6 +64,22 @@
                 </div>
             </div>
         </header>
+
+        <div class="flex flex-wrap items-center justify-start gap-3 mb-6">
+            <button onclick="handleRefresh()" class="flex-1 md:flex-none bg-[#1E2333] hover:bg-[#2A3143] text-white text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg border border-[#2A3143]">
+                <svg id="refresh-icon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh Data
+            </button>
+            
+            <a href="https://app.cetus.zone/swap" target="_blank" class="flex-1 md:flex-none bg-[#00C2FF]/10 hover:bg-[#00C2FF]/20 text-[#00C2FF] border border-[#00C2FF]/30 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg group">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 group-hover:rotate-180 transition-transform duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                Trade on Cetus
+            </a>
+        </div>
 
         <div class="cetus-card mb-8 overflow-hidden relative shadow-2xl">
             <div class="absolute top-0 right-0 w-64 h-64 bg-[#00C2FF] rounded-full mix-blend-screen filter blur-[100px] opacity-10"></div>
@@ -116,6 +132,21 @@
         const formatterUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
         const formatterIDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
 
+        // Fungsi Trigger Refresh Tombol
+        async function handleRefresh() {
+            const icon = document.getElementById('refresh-icon');
+            icon.classList.add('animate-spin', 'text-[#00C2FF]'); // Tambah animasi putar & ubah warna
+            
+            // Set Loading UI Sementara
+            document.getElementById('status-text').innerText = "Menyegarkan data...";
+            
+            // Panggil Fungsi Fetch Utama
+            await fetchAssetData();
+            
+            // Hapus Animasi Putar setelah selesai
+            icon.classList.remove('animate-spin', 'text-[#00C2FF]');
+        }
+
         async function fetchAssetData() {
             try {
                 // 1. Fetch Semua Saldo Token
@@ -159,11 +190,10 @@
                     console.warn("Gagal mengambil kurs IDR, menggunakan nilai default.");
                 }
 
-                // 4. Fetch Harga Token dari DexScreener (Sangat akurat untuk token DEX SUI seperti XMN)
+                // 4. Fetch Harga Token dari DexScreener
                 const priceMap = {};
                 const coinTypes = balances.map(b => b.coinType);
                 
-                // DexScreener membatasi panjang URL, kita pecah request per 15 token
                 const chunkSize = 15;
                 for (let i = 0; i < coinTypes.length; i += chunkSize) {
                     const chunk = coinTypes.slice(i, i + chunkSize);
@@ -176,7 +206,6 @@
                                 const tokenAddr = pair.baseToken.address;
                                 const liquidity = parseFloat(pair.liquidity?.usd || 0);
                                 
-                                // Jika ada beberapa pair, ambil harga dari pool dengan liquiditas paling tinggi
                                 if (!priceMap[tokenAddr] || liquidity > priceMap[tokenAddr].liquidity) {
                                     priceMap[tokenAddr] = {
                                         priceUsd: parseFloat(pair.priceUsd || 0),
@@ -191,7 +220,7 @@
                     }
                 }
 
-                // Fallback khusus SUI jika DexScreener lambat mengembalikan pair utamanya
+                // Fallback khusus SUI
                 if (!priceMap["0x2::sui::SUI"]) {
                     try {
                         const cgSui = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=sui&vs_currencies=usd&include_24hr_change=true');
@@ -219,7 +248,6 @@
                     const name = meta.name || symbol;
                     let iconUrl = meta.iconUrl || `https://ui-avatars.com/api/?name=${symbol}&background=11141D&color=14F195`;
 
-                    // Handle ikon manual
                     if (b.coinType === "0x2::sui::SUI") iconUrl = "https://cryptologos.cc/logos/sui-sui-logo.png";
                     if (b.coinType === "0x356a26eb9e012a68958082340d4c4116e7f55615cf27affcff209cf0ae544f59::wal::WAL") iconUrl = "https://assets.coingecko.com/coins/images/39566/standard/walrus.jpg";
 
@@ -231,23 +259,20 @@
                     let coinUsd = 0;
                     let coinIdr = 0;
 
-                    // Mengambil data harga dari Map DexScreener
                     if (priceMap[b.coinType]) {
                         coinPrice = priceMap[b.coinType].priceUsd;
                         priceChange = priceMap[b.coinType].priceChange24h;
                         coinUsd = actualBalance * coinPrice;
-                        coinIdr = coinUsd * idrRate; // Konversi ke Rupiah
+                        coinIdr = coinUsd * idrRate;
                         
                         totalUsd += coinUsd;
                         totalIdr += coinIdr;
                     }
 
-                    // Tampilkan koin dengan saldo > 0
                     if (actualBalance > 0) {
                         const changeColor = priceChange >= 0 ? 'text-[#14F195]' : 'text-red-400';
                         const changeSign = priceChange > 0 ? '+' : '';
                         
-                        // Buat URL parameter untuk lempar data ke asset.html
                         const detailUrl = `asset.html?type=${encodeURIComponent(b.coinType)}&symbol=${encodeURIComponent(symbol)}&name=${encodeURIComponent(name)}&balance=${actualBalance}`;
 
                         htmlContent += `
