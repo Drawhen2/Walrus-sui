@@ -297,37 +297,54 @@
             document.getElementById('total-value-idr').innerText = "Rp 0";
         }
 
-        // Setup TradingView Widget
-        function initTradingView() {
-            let tvSymbol = "BINANCE:SUIUSDT"; // Default
-            
-            // Mapping Exchange TradingView berdasarkan Symbol Token
+        // Setup Chart (TradingView untuk Koin Mayor, DexScreener Embed untuk Token DEX)
+        function initChart() {
+            const chartContainer = document.getElementById('tv_chart_container');
             const symUp = symbol.toUpperCase();
-            if (symUp === 'WAL') tvSymbol = "BYBIT:WALUSDT";
-            else if (symUp === 'SUI') tvSymbol = "BINANCE:SUIUSDT";
-            else if (symUp === 'USDC') tvSymbol = "BINANCE:USDCUSDT";
-            else tvSymbol = `CRYPTO:${symUp}USDT`; // General Fallback
 
-            new TradingView.widget({
-                "autosize": true,
-                "symbol": tvSymbol,
-                "interval": "60",
-                "timezone": "Asia/Jakarta",
-                "theme": "dark",
-                "style": "1",
-                "locale": "id",
-                "enable_publishing": false,
-                "backgroundColor": "#11141D",
-                "gridColor": "#1E2333",
-                "hide_top_toolbar": false,
-                "save_image": false,
-                "container_id": "tv_chart_container"
-            });
+            // Daftar koin major yang di-support penuh oleh TradingView
+            const majorCoins = ['SUI', 'USDC', 'USDT', 'BTC', 'ETH'];
+
+            if (majorCoins.includes(symUp)) {
+                // Gunakan TradingView Widget
+                let tvSymbol = `BINANCE:${symUp}USDT`;
+                
+                new TradingView.widget({
+                    "autosize": true,
+                    "symbol": tvSymbol,
+                    "interval": "60",
+                    "timezone": "Asia/Jakarta",
+                    "theme": "dark",
+                    "style": "1",
+                    "locale": "id",
+                    "enable_publishing": false,
+                    "backgroundColor": "#11141D",
+                    "gridColor": "#1E2333",
+                    "hide_top_toolbar": false,
+                    "save_image": false,
+                    "container_id": "tv_chart_container"
+                });
+            } else {
+                // Gunakan DexScreener Embed untuk token DEX (seperti XMN, WAL, dll)
+                if (coinType) {
+                    chartContainer.innerHTML = `
+                        <iframe 
+                            width="100%" 
+                            height="100%" 
+                            src="https://dexscreener.com/sui/${coinType}?embed=1&theme=dark&info=0" 
+                            frameborder="0"
+                            style="border-radius: 0 0 15px 15px;">
+                        </iframe>
+                    `;
+                } else {
+                    chartContainer.innerHTML = '<div class="flex items-center justify-center h-full text-slate-500">Data grafik tidak tersedia</div>';
+                }
+            }
         }
 
         // Eksekusi fungsi saat page diload
         fetchPrice();
-        initTradingView();
+        initChart();
     </script>
 </body>
 </html>
