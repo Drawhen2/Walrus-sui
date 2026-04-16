@@ -116,14 +116,6 @@
         const formatterUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
         const formatterIDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
 
-        // Mapping Contract ke CoinGecko ID
-        const tokenPriceMapping = {
-            "0x2::sui::SUI": "sui",
-            "0x356a26eb9e012a68958082340d4c4116e7f55615cf27affcff209cf0ae544f59::wal::WAL": "walrus-2",
-            "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC": "usd-coin",
-            "0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN": "usd-coin-wormhole-from-ethereum"
-        };
-
         async function fetchAssetData() {
             try {
                 // 1. Fetch Semua Saldo Token
@@ -131,10 +123,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        jsonrpc: "2.0",
-                        id: 1,
-                        method: "suix_getAllBalances",
-                        params: [SUI_ADDRESS]
+                        jsonrpc: "2.0", id: 1, method: "suix_getAllBalances", params: [SUI_ADDRESS]
                     })
                 });
                 const balData = await balResponse.json();
@@ -158,18 +147,70 @@
                 );
                 const metaResults = await Promise.all(metaPromises);
 
-                // 3. Fetch Harga dari CoinGecko beserta 24h change
-                const uniqueCgIds = [...new Set(Object.values(tokenPriceMapping))];
-                const cgIds = uniqueCgIds.join(',');
+                // 3. Ambil Kurs USD ke IDR dari CoinGecko
+                let idrRate = 16000; // Harga default jika API gagal
+                try {
+                    const cgRate = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=usd-coin&vs_currencies=idr');
+                    const cgData = await cgRate.json();
+                    if (cgData['usd-coin'] && cgData['usd-coin'].idr) {
+                        idrRate = cgData['usd-coin'].idr;
+                    }
+                } catch (e) {
+                    console.warn("Gagal mengambil kurs IDR, menggunakan nilai default.");
+                }
+
+                // 4. Fetch Harga Token dari DexScreener (Sangat akurat untuk token DEX SUI seperti XMN)
+                const priceMap = {};
+                const coinTypes = balances.map(b => b.coinType);
                 
-                const priceResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cgIds}&vs_currencies=usd,idr&include_24hr_change=true`);
-                const priceData = await priceResponse.json();
+                // DexScreener membatasi panjang URL, kita pecah request per 15 token
+                const chunkSize = 15;
+                for (let i = 0; i < coinTypes.length; i += chunkSize) {
+                    const chunk = coinTypes.slice(i, i + chunkSize);
+                    try {
+                        const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${chunk.join(',')}`);
+                        const dexData = await dexRes.json();
+                        
+                        if (dexData && dexData.pairs) {
+                            dexData.pairs.forEach(pair => {
+                                const tokenAddr = pair.baseToken.address;
+                                const liquidity = parseFloat(pair.liquidity?.usd || 0);
+                                
+                                // Jika ada beberapa pair, ambil harga dari pool dengan liquiditas paling tinggi
+                                if (!priceMap[tokenAddr] || liquidity > priceMap[tokenAddr].liquidity) {
+                                    priceMap[tokenAddr] = {
+                                        priceUsd: parseFloat(pair.priceUsd || 0),
+                                        priceChange24h: parseFloat(pair.priceChange?.h24 || 0),
+                                        liquidity: liquidity
+                                    };
+                                }
+                            });
+                        }
+                    } catch(e) {
+                        console.warn('Gagal fetch data dari DexScreener:', e);
+                    }
+                }
+
+                // Fallback khusus SUI jika DexScreener lambat mengembalikan pair utamanya
+                if (!priceMap["0x2::sui::SUI"]) {
+                    try {
+                        const cgSui = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=sui&vs_currencies=usd&include_24hr_change=true');
+                        const cgSuiData = await cgSui.json();
+                        if(cgSuiData.sui) {
+                            priceMap["0x2::sui::SUI"] = {
+                                priceUsd: cgSuiData.sui.usd,
+                                priceChange24h: cgSuiData.sui.usd_24h_change || 0,
+                                liquidity: 999999999
+                            };
+                        }
+                    } catch (e) {}
+                }
 
                 let totalUsd = 0;
                 let totalIdr = 0;
                 let htmlContent = '';
 
-                // 4. Proses dan Render Data
+                // 5. Proses dan Render Data
                 balances.forEach((b, index) => {
                     const meta = metaResults[index].result || {};
                     
@@ -185,18 +226,18 @@
                     const rawBalance = parseInt(b.totalBalance);
                     const actualBalance = rawBalance / Math.pow(10, decimals);
 
-                    let coinUsd = 0;
-                    let coinIdr = 0;
                     let coinPrice = 0;
                     let priceChange = 0;
-                    const cgId = tokenPriceMapping[b.coinType];
+                    let coinUsd = 0;
+                    let coinIdr = 0;
 
-                    // Kalkulasi jika token ada di mapping
-                    if (cgId && priceData[cgId]) {
-                        coinPrice = priceData[cgId].usd;
-                        coinUsd = actualBalance * priceData[cgId].usd;
-                        coinIdr = actualBalance * priceData[cgId].idr;
-                        priceChange = priceData[cgId].usd_24h_change || 0;
+                    // Mengambil data harga dari Map DexScreener
+                    if (priceMap[b.coinType]) {
+                        coinPrice = priceMap[b.coinType].priceUsd;
+                        priceChange = priceMap[b.coinType].priceChange24h;
+                        coinUsd = actualBalance * coinPrice;
+                        coinIdr = coinUsd * idrRate; // Konversi ke Rupiah
+                        
                         totalUsd += coinUsd;
                         totalIdr += coinIdr;
                     }
@@ -207,7 +248,7 @@
                         const changeSign = priceChange > 0 ? '+' : '';
                         
                         // Buat URL parameter untuk lempar data ke asset.html
-                        const detailUrl = `asset.html?type=${encodeURIComponent(b.coinType)}&symbol=${encodeURIComponent(symbol)}&name=${encodeURIComponent(name)}&balance=${actualBalance}&cgId=${cgId || ''}`;
+                        const detailUrl = `asset.html?type=${encodeURIComponent(b.coinType)}&symbol=${encodeURIComponent(symbol)}&name=${encodeURIComponent(name)}&balance=${actualBalance}`;
 
                         htmlContent += `
                             <a href="${detailUrl}" class="block border-b border-[#1E2333] hover:bg-[#1A1F2E] transition-all cursor-pointer group">
@@ -251,7 +292,7 @@
                 document.getElementById('total-usd').innerText = formatterUSD.format(totalUsd);
                 document.getElementById('total-idr').innerText = formatterIDR.format(totalIdr);
                 
-                document.getElementById('status-text').innerText = "Terhubung \u2022 Diperbarui: " + new Date().toLocaleTimeString('id-ID');
+                document.getElementById('status-text').innerText = "Terhubung • Diperbarui: " + new Date().toLocaleTimeString('id-ID');
 
             } catch (error) {
                 console.error("Gagal mengambil data:", error);
