@@ -210,7 +210,7 @@
         
         // Update Saldo (Koin yang dimiliki)
         document.getElementById('owned-balance').innerText = balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) + ' ' + symbol.toUpperCase();
-        document.querySelector('.history-amount').innerText = (balance > 10 ? (balance / 2).toFixed(2) : balance.toFixed(2)) + ' ' + symbol.toUpperCase(); // Mock data riwayat
+        document.querySelector('.history-amount').innerText = (balance > 10 ? (balance / 2).toFixed(2) : balance.toFixed(2)) + ' ' + symbol.toUpperCase();
 
         // Fetch Harga 
         async function fetchPrice() {
@@ -235,29 +235,39 @@
             }
 
             try {
-                // 2. Fetch Harga dari DexScreener menggunakan Token Address
-                const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${coinType}`);
-                const dexData = await dexRes.json();
+                // 2. Fetch Harga agar sinkron dengan Chart
                 
-                if (dexData && dexData.pairs && dexData.pairs.length > 0) {
-                    // Cari pool dengan liquiditas paling tinggi
-                    let bestPair = dexData.pairs[0];
-                    dexData.pairs.forEach(pair => {
-                        if (parseFloat(pair.liquidity?.usd || 0) > parseFloat(bestPair.liquidity?.usd || 0)) {
-                            bestPair = pair;
-                        }
-                    });
-                    
-                    priceUsd = parseFloat(bestPair.priceUsd || 0);
-                    priceChange24h = parseFloat(bestPair.priceChange?.h24 || 0);
-                } 
-                // Fallback khusus SUI
-                else if (coinType === "0x2::sui::SUI") {
+                // Fallback khusus SUI (Koin Utama)
+                if (coinType === "0x2::sui::SUI") {
                     const cgSui = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=sui&vs_currencies=usd&include_24hr_change=true');
                     const cgSuiData = await cgSui.json();
                     if(cgSuiData.sui) {
                         priceUsd = cgSuiData.sui.usd;
                         priceChange24h = cgSuiData.sui.usd_24h_change || 0;
+                    }
+                } 
+                else {
+                    // Fetch token DEX dari API GECKOTERMINAL (Agar sama persis dengan Chart)
+                    const gtRes = await fetch(`https://api.geckoterminal.com/api/v2/networks/sui-network/tokens/${encodeURIComponent(coinType)}`);
+                    const gtData = await gtRes.json();
+                    
+                    if (gtData && gtData.data && gtData.data.attributes) {
+                        priceUsd = parseFloat(gtData.data.attributes.price_usd || 0);
+                        
+                        const changeObj = gtData.data.attributes.price_change_percentage;
+                        priceChange24h = changeObj && changeObj.h24 ? parseFloat(changeObj.h24) : 0;
+                    } else {
+                        // Fallback ke Dexscreener JIKA GeckoTerminal API sedang gangguan
+                        const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${coinType}`);
+                        const dexData = await dexRes.json();
+                        if (dexData && dexData.pairs && dexData.pairs.length > 0) {
+                            let bestPair = dexData.pairs[0];
+                            dexData.pairs.forEach(pair => {
+                                if (parseFloat(pair.liquidity?.usd || 0) > parseFloat(bestPair.liquidity?.usd || 0)) bestPair = pair;
+                            });
+                            priceUsd = parseFloat(bestPair.priceUsd || 0);
+                            priceChange24h = parseFloat(bestPair.priceChange?.h24 || 0);
+                        }
                     }
                 }
 
@@ -302,7 +312,6 @@
             const chartContainer = document.getElementById('tv_chart_container');
             const symUp = symbol.toUpperCase();
 
-            // Daftar koin major yang di-support penuh oleh TradingView
             const majorCoins = ['SUI', 'USDC', 'USDT', 'BTC', 'ETH'];
 
             if (majorCoins.includes(symUp)) {
@@ -326,7 +335,6 @@
                 });
             } else {
                 // Gunakan GeckoTerminal Embed untuk token DEX (seperti XMN, dll)
-                // Keuntungannya: GeckoTerminal secara *default* menampilkan grafik Harga (Price)
                 if (coinType) {
                     chartContainer.innerHTML = `
                         <iframe 
